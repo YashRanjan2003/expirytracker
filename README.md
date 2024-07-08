@@ -82,4 +82,4 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 Yash
 
-Project Link: [https://github.com/YashRanjan2003/product-expiry-tracker](https://github.com/YashRanjan2003/product-expiry-tracker)
+Project Link: [https://github.com/YashRanjan2003/expirytracker](https://github.com/YashRanjan2003/expirytracker)
