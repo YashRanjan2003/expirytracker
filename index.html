@@ -242,103 +242,57 @@
                 document.getElementById('productName').value = '';
                 document.getElementById('expiryDate').value = '';
                 capturedImage = null;
-                // Reset camera view
-                document.getElementById('camera').style.display = 'block';
-                document.getElementById('capturedImage').style.display = 'none';
-                isCaptured = false;
-                document.getElementById('capture').textContent = 'Capture Image';
             } else {
                 alert('Please fill in all fields and capture an image before saving.');
             }
         });
 
         function extractExpiryDate(text) {
+            // Convert text to lowercase and remove extra spaces
             text = text.toLowerCase().replace(/\s+/g, ' ').trim();
 
+            // Array of possible date formats
             const dateFormats = [
-                // MMYYYY format
-                {regex: /\b(0?[1-9]|1[0-2])(\d{4})\b/, handler: (m) => `${m[2]}-${m[1].padStart(2, '0')}-01`},
-                // Existing formats
-                {regex: /\b(exp|expiry|best before).*?(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/, handler: (m) => parseComplexDate(m[2])},
-                {regex: /\b(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/, handler: (m) => parseComplexDate(m[1])},
-                {regex: /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*?\d{1,2}.*?\d{4}\b/i, handler: (m) => parseTextualDate(m[0])},
-                {regex: /\b\d{1,2}.*?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*?\d{4}\b/i, handler: (m) => parseTextualDate(m[0])}
+                /\b(exp|expiry|best before).*?(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/,
+                /\b(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/,
+                /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*?\d{1,2}.*?\d{4}\b/i,
+                /\b\d{1,2}.*?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*?\d{4}\b/i
             ];
 
+            let match;
             for (let format of dateFormats) {
-                let match = text.match(format.regex);
+                match = text.match(format);
                 if (match) {
-                    let parsedDate = format.handler(match);
-                    if (parsedDate && new Date(parsedDate) >= new Date().setHours(0, 0, 0, 0)) {
-                        return parsedDate;
+                    // Extract the date part
+                    let dateStr = match[2] || match[1];
+                    // Normalize date string to YYYY-MM-DD format
+                    dateStr = dateStr.replace(/[-/\s]/g, '-');
+                    const parts = dateStr.split('-');
+                    if (parts[2].length === 2) {
+                        parts[2] = '20' + parts[2]; // Assuming 20xx
                     }
+                    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
                 }
-            }
-
-            return null;
-        }
-
-        function parseComplexDate(dateStr) {
-            dateStr = dateStr.replace(/[^\d]/g, '');
-            if (dateStr.length === 6) {
-                // DDMMYY or MMDDYY
-                let year = parseInt(dateStr.slice(-2)) + 2000;
-                let month = parseInt(dateStr.slice(2, 4));
-                let day = parseInt(dateStr.slice(0, 2));
-                if (month > 12) {
-                    [day, month] = [month, day];
-                }
-                return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-            } else if (dateStr.length === 8) {
-                // DDMMYYYY or MMDDYYYY
-                let year = parseInt(dateStr.slice(-4));
-                let month = parseInt(dateStr.slice(2, 4));
-                let day = parseInt(dateStr.slice(0, 2));
-                if (month > 12) {
-                    [day, month] = [month, day];
-                }
-                return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-            }
-            return null;
-        }
-
-        function parseTextualDate(dateStr) {
-            const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-            const parts = dateStr.split(/\s+/);
-            let day, month, year;
-
-            for (let part of parts) {
-                if (/^\d{1,2}$/.test(part)) {
-                    day = parseInt(part);
-                } else if (/^\d{4}$/.test(part)) {
-                    year = parseInt(part);
-                } else {
-                    month = months.indexOf(part.toLowerCase().substr(0, 3)) + 1;
-                }
-            }
-
-            if (month && year) {
-                return `${year}-${month.toString().padStart(2, '0')}-${day ? day.toString().padStart(2, '0') : '01'}`;
             }
             return null;
         }
 
         function calculateDaysUntilExpiry(expiryDate) {
-            const today = new Date();
+            const currentDate = new Date();
             const expiry = new Date(expiryDate);
-            const timeDiff = expiry.getTime() - today.getTime();
-            return Math.ceil(timeDiff / (1000 * 3600 * 24));
+            const timeDifference = expiry.getTime() - currentDate.getTime();
+            return Math.ceil(timeDifference / (1000 * 3600 * 24));
         }
 
         function saveProduct(product) {
-            let products = JSON.parse(localStorage.getItem('products') || '[]');
+            let products = JSON.parse(localStorage.getItem('products')) || [];
             products.push(product);
             localStorage.setItem('products', JSON.stringify(products));
         }
 
-        function deleteProduct(id) {
-            let products = JSON.parse(localStorage.getItem('products') || '[]');
-            products = products.filter(product => product.id !== id);
+        function deleteProduct(productId) {
+            let products = JSON.parse(localStorage.getItem('products')) || [];
+            products = products.filter(product => product.id !== productId);
             localStorage.setItem('products', JSON.stringify(products));
             updateProductList();
         }
@@ -346,19 +300,18 @@
         function updateProductList() {
             const productList = document.getElementById('productList');
             productList.innerHTML = '';
-            
-            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const products = JSON.parse(localStorage.getItem('products')) || [];
             products.forEach(product => {
-                const li = document.createElement('li');
-                li.className = 'product-item';
-                li.innerHTML = `
+                const productItem = document.createElement('li');
+                productItem.className = 'product-item';
+                productItem.innerHTML = `
                     <img src="${product.image}" alt="${product.name}">
                     <h3>${product.name}</h3>
-                    <p>Expiry: ${product.expiryDate}</p>
-                    <p>Days until expiry: ${product.daysUntilExpiry}</p>
+                    <p>Expiry Date: ${product.expiryDate}</p>
+                    <p>Days Until Expiry: ${product.daysUntilExpiry}</p>
                     <button class="delete-btn" onclick="deleteProduct(${product.id})">Delete</button>
                 `;
-                productList.appendChild(li);
+                productList.appendChild(productItem);
             });
         }
 
