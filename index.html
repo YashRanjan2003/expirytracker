@@ -105,35 +105,6 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             position: relative;
         }
-        .product-item img {
-            max-width: 100%;
-            border-radius: 4px;
-            margin-bottom: 10px;
-        }
-        .delete-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            cursor: pointer;
-            border-radius: 3px;
-            transition: background-color 0.3s ease;
-        }
-        .delete-btn:hover {
-            background-color: #c0392b;
-        }
-        @media (max-width: 600px) {
-            .container {
-                padding: 10px;
-            }
-            #capture {
-                font-size: 1em;
-                padding: 10px 20px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -141,148 +112,83 @@
         <h1>Product Expiry Tracker</h1>
         <div id="cameraContainer">
             <video id="camera" autoplay></video>
-            <img id="capturedImage" alt="Captured Image">
+            <img id="capturedImage">
         </div>
-        <button id="capture">Capture Image</button>
         <canvas id="canvas"></canvas>
+        <button id="capture">Capture</button>
         <div class="input-group">
-            <input type="text" id="productName" placeholder="Enter product name">
-            <input type="date" id="expiryDate">
-            <button id="saveProduct">Save Product</button>
+            <input type="text" id="productName" placeholder="Product Name">
+            <input type="date" id="expiryDate" placeholder="Expiry Date">
         </div>
-        <h2>Saved Products</h2>
+        <button id="saveProduct">Save Product</button>
         <ul id="productList"></ul>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.5/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <script>
-        let stream;
-        let capturedImage;
-        let isCaptured = false;
+        const video = document.getElementById('camera');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const capturedImage = document.getElementById('capturedImage');
+        const productNameInput = document.getElementById('productName');
+        const expiryDateInput = document.getElementById('expiryDate');
+        const productList = document.getElementById('productList');
 
-        async function startCamera() {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: { exact: "environment" } } 
-                });
-                document.getElementById('camera').srcObject = stream;
-            } catch (error) {
-                console.error('Error accessing the rear camera:', error);
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    document.getElementById('camera').srcObject = stream;
-                } catch (fallbackError) {
-                    console.error('Error accessing any camera:', fallbackError);
-                }
-            }
-        }
-
-        startCamera();
+        // Access the device camera and stream to video element
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(error => {
+                console.error('Error accessing camera:', error);
+            });
 
         document.getElementById('capture').addEventListener('click', () => {
-            const video = document.getElementById('camera');
-            const capturedImageElement = document.getElementById('capturedImage');
-            const canvas = document.getElementById('canvas');
-            const context = canvas.getContext('2d');
-            
-            if (!isCaptured) {
-                // Capture image
-                const size = Math.min(video.videoWidth, video.videoHeight);
-                canvas.width = size;
-                canvas.height = size;
-                
-                const xOffset = (video.videoWidth - size) / 2;
-                const yOffset = (video.videoHeight - size) / 2;
-                
-                context.drawImage(video, xOffset, yOffset, size, size, 0, 0, size, size);
-                
-                capturedImage = canvas.toDataURL('image/jpeg');
-                capturedImageElement.src = capturedImage;
-                
-                video.style.display = 'none';
-                capturedImageElement.style.display = 'block';
-                
-                isCaptured = true;
-                document.getElementById('capture').textContent = 'Retake';
-                
-                Tesseract.recognize(capturedImage)
-                    .then(({ data: { text } }) => {
-                        const expiryDate = extractExpiryDate(text);
-                        if (expiryDate) {
-                            document.getElementById('expiryDate').value = expiryDate;
-                            alert(`Detected expiry date: ${expiryDate}`);
-                        } else {
-                            alert('No valid expiry date detected. Please enter manually.');
-                        }
-                    });
-            } else {
-                // Unfreeze camera
-                video.style.display = 'block';
-                capturedImageElement.style.display = 'none';
-                isCaptured = false;
-                document.getElementById('capture').textContent = 'Capture Image';
-            }
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/png');
+            capturedImage.src = dataUrl;
+            capturedImage.style.display = 'block';
+            video.style.display = 'none';
+            processImage(dataUrl);
         });
+
+        function processImage(dataUrl) {
+            Tesseract.recognize(
+                dataUrl,
+                'eng',
+                {
+                    logger: m => console.log(m)
+                }
+            ).then(({ data: { text } }) => {
+                console.log('Recognized text:', text);
+                const expiryDate = extractDate(text);
+                console.log('Extracted date:', expiryDate);
+                if (expiryDate) {
+                    expiryDateInput.value = expiryDate;
+                }
+            });
+        }
+
+        function extractDate(text) {
+            const datePattern = /(\d{4}-\d{2}-\d{2})/; // Match YYYY-MM-DD format
+            const match = text.match(datePattern);
+            return match ? match[0] : null;
+        }
 
         document.getElementById('saveProduct').addEventListener('click', () => {
-            const productName = document.getElementById('productName').value;
-            const expiryDate = document.getElementById('expiryDate').value;
-            
-            if (productName && expiryDate && capturedImage) {
+            const productName = productNameInput.value;
+            const expiryDate = expiryDateInput.value;
+            if (productName && expiryDate) {
                 const product = {
-                    id: Date.now(),
                     name: productName,
-                    image: capturedImage,
-                    expiryDate: expiryDate,
-                    daysUntilExpiry: calculateDaysUntilExpiry(expiryDate)
+                    expiryDate: expiryDate
                 };
-                
                 saveProduct(product);
-                updateProductList();
-                document.getElementById('productName').value = '';
-                document.getElementById('expiryDate').value = '';
-                capturedImage = null;
-            } else {
-                alert('Please fill in all fields and capture an image before saving.');
+                displayProduct(product);
+                productNameInput.value = '';
+                expiryDateInput.value = '';
             }
         });
-
-        function extractExpiryDate(text) {
-            // Convert text to lowercase and remove extra spaces
-            text = text.toLowerCase().replace(/\s+/g, ' ').trim();
-
-            // Array of possible date formats
-            const dateFormats = [
-                /\b(exp|expiry|best before).*?(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/,
-                /\b(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/,
-                /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*?\d{1,2}.*?\d{4}\b/i,
-                /\b\d{1,2}.*?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*?\d{4}\b/i
-            ];
-
-            let match;
-            for (let format of dateFormats) {
-                match = text.match(format);
-                if (match) {
-                    // Extract the date part
-                    let dateStr = match[2] || match[1];
-                    // Normalize date string to YYYY-MM-DD format
-                    dateStr = dateStr.replace(/[-/\s]/g, '-');
-                    const parts = dateStr.split('-');
-                    if (parts[2].length === 2) {
-                        parts[2] = '20' + parts[2]; // Assuming 20xx
-                    }
-                    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                }
-            }
-            return null;
-        }
-
-        function calculateDaysUntilExpiry(expiryDate) {
-            const currentDate = new Date();
-            const expiry = new Date(expiryDate);
-            const timeDifference = expiry.getTime() - currentDate.getTime();
-            return Math.ceil(timeDifference / (1000 * 3600 * 24));
-        }
 
         function saveProduct(product) {
             let products = JSON.parse(localStorage.getItem('products')) || [];
@@ -290,32 +196,19 @@
             localStorage.setItem('products', JSON.stringify(products));
         }
 
-        function deleteProduct(productId) {
-            let products = JSON.parse(localStorage.getItem('products')) || [];
-            products = products.filter(product => product.id !== productId);
-            localStorage.setItem('products', JSON.stringify(products));
-            updateProductList();
+        function displayProduct(product) {
+            const li = document.createElement('li');
+            li.className = 'product-item';
+            li.textContent = `${product.name} - Expires on: ${product.expiryDate}`;
+            productList.appendChild(li);
         }
 
-        function updateProductList() {
-            const productList = document.getElementById('productList');
-            productList.innerHTML = '';
+        function loadProducts() {
             const products = JSON.parse(localStorage.getItem('products')) || [];
-            products.forEach(product => {
-                const productItem = document.createElement('li');
-                productItem.className = 'product-item';
-                productItem.innerHTML = `
-                    <img src="${product.image}" alt="${product.name}">
-                    <h3>${product.name}</h3>
-                    <p>Expiry Date: ${product.expiryDate}</p>
-                    <p>Days Until Expiry: ${product.daysUntilExpiry}</p>
-                    <button class="delete-btn" onclick="deleteProduct(${product.id})">Delete</button>
-                `;
-                productList.appendChild(productItem);
-            });
+            products.forEach(displayProduct);
         }
 
-        updateProductList();
+        window.addEventListener('load', loadProducts);
     </script>
 </body>
 </html>
