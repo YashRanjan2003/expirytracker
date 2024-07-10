@@ -228,30 +228,39 @@
         });
 
         function extractExpiryDate(text) {
-            // Convert text to lowercase and remove extra spaces
             text = text.toLowerCase().replace(/\s+/g, ' ').trim();
 
-            // Array of possible date formats
             const dateFormats = [
-                /\b(exp|expiry|best before).*?(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/,
-                /\b(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/,
-                /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*?\d{1,2}.*?\d{4}\b/i,
-                /\b\d{1,2}.*?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*?\d{4}\b/i
+                // MM/YYYY or MM-YYYY
+                {regex: /\b(0?[1-9]|1[0-2])[/-](\d{4})\b/, handler: (m) => `${m[2]}-${m[1].padStart(2, '0')}-01`},
+                // DD/MM/YYYY or DD-MM-YYYY
+                {regex: /\b(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])[/-](\d{4})\b/, handler: (m) => `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`},
+                // YYYY/MM/DD or YYYY-MM-DD
+                {regex: /\b(\d{4})[/-](0?[1-9]|1[0-2])[/-](0?[1-9]|[12]\d|3[01])\b/, handler: (m) => `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`},
+                // MMYYYY format
+                {regex: /\b(0?[1-9]|1[0-2])(\d{4})\b/, handler: (m) => `${m[2]}-${m[1].padStart(2, '0')}-01`},
+                // DD MMM YYYY or DD-MMM-YYYY or DD.MMM.YYYY
+                {regex: /\b(0?[1-9]|[12]\d|3[01])[-.\s]?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(\d{4})\b/i, handler: (m) => parseTextualDate(m[0])},
+                // MMM DD YYYY or MMM-DD-YYYY or MMM.DD.YYYY
+                {regex: /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(0?[1-9]|[12]\d|3[01])[-.\s]?(\d{4})\b/i, handler: (m) => parseTextualDate(m[0])},
+                // YYYY MMM DD or YYYY-MMM-DD or YYYY.MMM.DD
+                {regex: /\b(\d{4})[-.\s]?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(0?[1-9]|[12]\d|3[01])\b/i, handler: (m) => parseTextualDate(m[0])},
+                // Textual month with year (e.g., January 2024, Jan 2024)
+                {regex: /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{4})\b/i, handler: (m) => `${m[2]}-${getMonthNumber(m[1]).padStart(2, '0')}-01`},
+                // Year followed by textual month (e.g., 2024 January, 2024 Jan)
+                {regex: /\b(\d{4})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i, handler: (m) => `${m[1]}-${getMonthNumber(m[2]).padStart(2, '0')}-01`},
+                // Expiry-related keywords followed by a date
+                {regex: /\b(exp|expiry|best before|use by).*?(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/, handler: (m) => parseComplexDate(m[2])},
+                // Any remaining number sequence that could be a date
+                {regex: /\b(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/, handler: (m) => parseComplexDate(m[1])}
             ];
 
-            let match;
             for (let format of dateFormats) {
-                match = text.match(format);
+                let match = text.match(format.regex);
                 if (match) {
-                    // Extract the date part
-                    let dateStr = match[2] || match[1];
-                    
-                    // Try to parse the date
-                    let parsedDate = parseDate(dateStr);
-                    
-                    // Check if the parsed date is not in the past
-                    if (parsedDate && parsedDate >= new Date().setHours(0, 0, 0, 0)) {
-                        return parsedDate.toISOString().split('T')[0]; // Return in YYYY-MM-DD format
+                    let parsedDate = format.handler(match);
+                    if (parsedDate && new Date(parsedDate) >= new Date().setHours(0, 0, 0, 0)) {
+                        return parsedDate;
                     }
                 }
             }
@@ -259,41 +268,65 @@
             return null;
         }
 
-        function parseDate(dateStr) {
-            // Remove any non-alphanumeric characters
-            dateStr = dateStr.replace(/[^\w\s]/g, '');
-            
-            // Helper function to parse various date formats
-            const formats = [
-                // DDMMYYYY or MMDDYYYY
-                {regex: /^(\d{1,2})(\d{1,2})(\d{4})$/, handler: (m) => [new Date(m[3], m[2] - 1, m[1]), new Date(m[3], m[1] - 1, m[2])]},
-                // DD MM YYYY or MM DD YYYY
-                {regex: /^(\d{1,2})\s(\d{1,2})\s(\d{4})$/, handler: (m) => [new Date(m[3], m[2] - 1, m[1]), new Date(m[3], m[1] - 1, m[2])]},
-                // Month DD YYYY
-                {regex: /^(\w{3,9})\s(\d{1,2})\s(\d{4})$/, handler: (m) => [new Date(m[3], getMonthIndex(m[1]), m[2])]},
-                // DD Month YYYY
-                {regex: /^(\d{1,2})\s(\w{3,9})\s(\d{4})$/, handler: (m) => [new Date(m[3], getMonthIndex(m[2]), m[1])]}
-            ];
-
-            for (let format of formats) {
-                let match = dateStr.match(format.regex);
-                if (match) {
-                    let possibleDates = format.handler(match);
-                    // Return the first valid date
-                    for (let date of possibleDates) {
-                        if (!isNaN(date.getTime())) {
-                            return date;
-                        }
+        function parseComplexDate(dateStr) {
+            dateStr = dateStr.replace(/[^\d]/g, '');
+            if (dateStr.length === 6) {
+                // DDMMYY or MMDDYY or YYMMDD
+                let year = parseInt(dateStr.slice(-2)) + 2000;
+                let month = parseInt(dateStr.slice(2, 4));
+                let day = parseInt(dateStr.slice(0, 2));
+                if (month > 12) {
+                    if (day <= 12) {
+                        [day, month] = [month, day];
+                    } else {
+                        // Assume YYMMDD
+                        [year, month, day] = [year, day, month];
                     }
                 }
+                return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            } else if (dateStr.length === 8) {
+                // DDMMYYYY or MMDDYYYY or YYYYMMDD
+                let year = parseInt(dateStr.slice(-4));
+                let month = parseInt(dateStr.slice(2, 4));
+                let day = parseInt(dateStr.slice(0, 2));
+                if (year > 2100) {
+                    // Assume YYYYMMDD
+                    [year, month, day] = [parseInt(dateStr.slice(0, 4)), parseInt(dateStr.slice(4, 6)), parseInt(dateStr.slice(-2))];
+                } else if (month > 12) {
+                    [day, month] = [month, day];
+                }
+                return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
             }
-
             return null;
         }
 
-        function getMonthIndex(monthStr) {
+        function parseTextualDate(dateStr) {
             const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-            return months.indexOf(monthStr.toLowerCase().substr(0, 3));
+            const parts = dateStr.split(/[-.\s]+/);
+            let day, month, year;
+
+            for (let part of parts) {
+                if (/^\d{1,2}$/.test(part)) {
+                    day = parseInt(part);
+                } else if (/^\d{4}$/.test(part)) {
+                    year = parseInt(part);
+                } else {
+                    month = months.indexOf(part.toLowerCase().substr(0, 3)) + 1;
+                }
+            }
+
+            if (month && year) {
+                return `${year}-${month.toString().padStart(2, '0')}-${day ? day.toString().padStart(2, '0') : '01'}`;
+            }
+            return null;
+        }
+
+        function getMonthNumber(monthStr) {
+            const months = {
+                jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+                jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+            };
+            return months[monthStr.toLowerCase().substr(0, 3)];
         }
 
         function calculateDaysUntilExpiry(expiryDate) {
