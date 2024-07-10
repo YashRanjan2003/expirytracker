@@ -228,45 +228,49 @@
         });
 
         function extractExpiryDate(text) {
-            text = text.toLowerCase().replace(/\s+/g, ' ').trim();
+    text = text.toLowerCase().replace(/\s+/g, ' ').trim();
 
-            const dateFormats = [
-                // MM/YYYY or MM-YYYY
-                {regex: /\b(0?[1-9]|1[0-2])[/-](\d{4})\b/, handler: (m) => `${m[2]}-${m[1].padStart(2, '0')}-01`},
-                // DD/MM/YYYY or DD-MM-YYYY
-                {regex: /\b(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])[/-](\d{4})\b/, handler: (m) => `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`},
-                // YYYY/MM/DD or YYYY-MM-DD
-                {regex: /\b(\d{4})[/-](0?[1-9]|1[0-2])[/-](0?[1-9]|[12]\d|3[01])\b/, handler: (m) => `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`},
-                // MMYYYY format
-                {regex: /\b(0?[1-9]|1[0-2])(\d{4})\b/, handler: (m) => `${m[2]}-${m[1].padStart(2, '0')}-01`},
-                // DD MMM YYYY or DD-MMM-YYYY or DD.MMM.YYYY
-                {regex: /\b(0?[1-9]|[12]\d|3[01])[-.\s]?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(\d{4})\b/i, handler: (m) => parseTextualDate(m[0])},
-                // MMM DD YYYY or MMM-DD-YYYY or MMM.DD.YYYY
-                {regex: /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(0?[1-9]|[12]\d|3[01])[-.\s]?(\d{4})\b/i, handler: (m) => parseTextualDate(m[0])},
-                // YYYY MMM DD or YYYY-MMM-DD or YYYY.MMM.DD
-                {regex: /\b(\d{4})[-.\s]?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(0?[1-9]|[12]\d|3[01])\b/i, handler: (m) => parseTextualDate(m[0])},
-                // Textual month with year (e.g., January 2024, Jan 2024)
-                {regex: /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{4})\b/i, handler: (m) => `${m[2]}-${getMonthNumber(m[1]).padStart(2, '0')}-01`},
-                // Year followed by textual month (e.g., 2024 January, 2024 Jan)
-                {regex: /\b(\d{4})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i, handler: (m) => `${m[1]}-${getMonthNumber(m[2]).padStart(2, '0')}-01`},
-                // Expiry-related keywords followed by a date
-                {regex: /\b(exp|expiry|best before|use by).*?(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/, handler: (m) => parseComplexDate(m[2])},
-                // Any remaining number sequence that could be a date
-                {regex: /\b(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/, handler: (m) => parseComplexDate(m[1])}
-            ];
+    const dateFormats = [
+        // MM/YYYY or MM-YYYY
+        {regex: /\b(0?[1-9]|1[0-2])[/-](\d{4})\b/, handler: (m) => `${m[2]}-${m[1].padStart(2, '0')}-01`},
+        // DD/MM/YYYY or DD-MM-YYYY
+        {regex: /\b(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])[/-](\d{4})\b/, handler: (m) => `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`},
+        // YYYY/MM/DD or YYYY-MM-DD
+        {regex: /\b(\d{4})[/-](0?[1-9]|1[0-2])[/-](0?[1-9]|[12]\d|3[01])\b/, handler: (m) => `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`},
+        // MMYYYY format
+        {regex: /\b(0?[1-9]|1[0-2])(\d{4})\b/, handler: (m) => `${m[2]}-${m[1].padStart(2, '0')}-01`},
+        // DD MMM YYYY or DD-MMM-YYYY or DD.MMM.YYYY
+        {regex: /\b(0?[1-9]|[12]\d|3[01])[-.\s]?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(\d{4})\b/i, handler: (m) => parseTextualDate(m[0])},
+        // MMM DD YYYY or MMM-DD-YYYY or MMM.DD.YYYY
+        {regex: /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(0?[1-9]|[12]\d|3[01])[-.\s]?(\d{4})\b/i, handler: (m) => parseTextualDate(m[0])},
+        // YYYY MMM DD or YYYY-MMM-DD or YYYY.MMM.DD
+        {regex: /\b(\d{4})[-.\s]?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-.\s]?(0?[1-9]|[12]\d|3[01])\b/i, handler: (m) => parseTextualDate(m[0])},
+        // Textual month with year (e.g., January 2024, Jan 2024)
+        {regex: /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{4})\b/i, handler: (m) => `${m[2]}-${getMonthNumber(m[1]).padStart(2, '0')}-01`},
+        // Year followed by textual month (e.g., 2024 January, 2024 Jan)
+        {regex: /\b(\d{4})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i, handler: (m) => `${m[1]}-${getMonthNumber(m[2]).padStart(2, '0')}-01`},
+        // Any remaining number sequence that could be a date
+        {regex: /\b(\d{1,2}[-/\s]?\d{1,2}[-/\s]?\d{2,4})\b/, handler: (m) => parseComplexDate(m[1])}
+    ];
 
-            for (let format of dateFormats) {
-                let match = text.match(format.regex);
-                if (match) {
-                    let parsedDate = format.handler(match);
-                    if (parsedDate && new Date(parsedDate) >= new Date().setHours(0, 0, 0, 0)) {
-                        return parsedDate;
-                    }
+    const currentDate = new Date();
+    const tenYearsLater = new Date(currentDate.getFullYear() + 10, currentDate.getMonth(), currentDate.getDate());
+
+    for (let format of dateFormats) {
+        let match = text.match(format.regex);
+        if (match) {
+            let parsedDate = format.handler(match);
+            if (parsedDate) {
+                let dateObj = new Date(parsedDate);
+                if (dateObj >= currentDate && dateObj <= tenYearsLater) {
+                    return parsedDate;
                 }
             }
-
-            return null;
         }
+    }
+
+    return null;
+}
 
         function parseComplexDate(dateStr) {
             dateStr = dateStr.replace(/[^\d]/g, '');
